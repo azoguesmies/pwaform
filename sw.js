@@ -1,54 +1,53 @@
-const CACHE_NAME = 'pwa-form-cache-v1';
-const urlsToCache = [
+const CACHE = 'pwa-form-v2';
+const STATIC = [
   '/',
   '/index.html',
   '/manifest.json',
   '/style.css',
   '/script.js',
-  '/icon-192.png',
-  '/icon-512.png'
+  '/icon-192.svg',
+  '/icon-512.svg'
 ];
 
-// Instalación del Service Worker
-self.addEventListener('install', event => {
-  event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then(cache => cache.addAll(urlsToCache))
-      .then(() => self.skipWaiting())
+// ── Instalación: precargar app shell ──
+self.addEventListener('install', e => {
+  e.waitUntil(
+    caches.open(CACHE).then(c => c.addAll(STATIC)).then(() => self.skipWaiting())
   );
 });
 
-// Activación del Service Worker
-self.addEventListener('activate', event => {
-  event.waitUntil(
-    caches.keys().then(cacheNames => {
-      return Promise.all(
-        cacheNames.filter(name => name !== CACHE_NAME)
-                  .map(name => caches.delete(name))
-      );
-    })
-    .then(() => self.clients.claim())
+// ── Activación: limpiar caches viejos ──
+self.addEventListener('activate', e => {
+  e.waitUntil(
+    caches.keys().then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))
+      .then(() => self.clients.claim())
   );
 });
 
-// Interceptar solicitudes de red
-self.addEventListener('fetch', event => {
-  event.respondWith(
-    caches.match(event.request)
-      .then(response => {
-        // Cache hit - return response
-        if (response) {
-          return response;
-        }
-        return fetch(event.request);
-      }
-    )
-  );
-});
+// ── Fetch: cache-first para estáticos, network-first para el resto ──
+self.addEventListener('fetch', e => {
+  const url = new URL(e.request.url);
 
-// Manejar mensajes del cliente
-self.addEventListener('message', event => {
-  if (event.data && event.data.type === 'SKIP_WAITING') {
-    self.skipWaiting();
+  // Solo interceptar mismositio
+  if (url.origin !== location.origin) return;
+
+  // Cache-first para los recursos estáticos
+  if (STATIC.includes(url.pathname)) {
+    e.respondWith(caches.match(e.request).then(r => r || fetch(e.request)));
+    return;
   }
+
+  // Network-first para el resto (ej: fuentes, CDN)
+  e.respondWith(
+    fetch(e.request).then(r => {
+      const clone = r.clone();
+      caches.open(CACHE).then(c => c.put(e.request, clone));
+      return r;
+    }).catch(() => caches.match(e.request).then(r => r || new Response('Offline', { status: 503 })))
+  );
+});
+
+// ── Mensajes del cliente ──
+self.addEventListener('message', e => {
+  if (e.data?.type === 'SKIP_WAITING') self.skipWaiting();
 });
