@@ -47,12 +47,14 @@ const addressInput = document.getElementById('address');
 const emailInput = document.getElementById('email');
 const latInput = document.getElementById('lat');
 const lonInput = document.getElementById('lon');
+const utmZoneInput = document.getElementById('utmZone');
 const getLocationBtn = document.getElementById('getLocation');
 const photoPreview = document.getElementById('photoPreview');
 const photoPlaceholder = document.getElementById('photoPlaceholder');
 const photoPreviewContainer = document.getElementById('photoPreviewContainer');
 const capturePhotoBtn = document.getElementById('capturePhoto');
 const removePhotoBtn = document.getElementById('removePhoto');
+const uploadPhotoBtn = document.getElementById('uploadPhoto');
 const photoInput = document.getElementById('photoInput');
 const saveBtn = document.getElementById('saveBtn');
 const saveBtnSpan = saveBtn.querySelector('span');
@@ -117,6 +119,7 @@ form.addEventListener('submit', async (e) => {
         email: emailInput.value.trim(),
         lat: latInput.value,
         lon: lonInput.value,
+        utmZone: utmZoneInput.value,
         photo: photoBase64
     };
 
@@ -136,6 +139,7 @@ form.addEventListener('submit', async (e) => {
         photoBlob = null;
         latInput.value = '';
         lonInput.value = '';
+        utmZoneInput.value = '';
 
         await displayRecords();
     } catch (err) {
@@ -144,16 +148,56 @@ form.addEventListener('submit', async (e) => {
     }
 });
 
-// ─── Clear ──────────────────────────────────────────────────────────────────
+// ─── Clear
 clearBtn.addEventListener('click', () => {
     form.reset();
     updatePhotoUI(null);
     photoBlob = null;
     latInput.value = '';
     lonInput.value = '';
+    utmZoneInput.value = '';
     editingId = null;
     saveBtnSpan.textContent = 'Guardar';
 });
+
+// ─── Conversión WGS84 → UTM ────────────────────────────────────────────────
+function toUTM(lat, lon) {
+    const a = 6378137;                  // semieje mayor WGS84
+    const f = 1 / 298.257223563;        // aplanamiento
+    const k0 = 0.9996;                  // factor de escala UTM
+    const e = Math.sqrt(2 * f - f * f); // primera excentricidad
+
+    const zone = Math.floor((lon + 180) / 6) + 1;
+    const cm = ((zone - 1) * 6 - 180 + 3) * Math.PI / 180; // meridiano central (rad)
+    const latR = lat * Math.PI / 180;
+    const lonR = lon * Math.PI / 180;
+    const dLon = lonR - cm;
+
+    const N = a / Math.sqrt(1 - e * e * Math.sin(latR) * Math.sin(latR));
+    const T = Math.tan(latR) * Math.tan(latR);
+    const C = e * e * Math.cos(latR) * Math.cos(latR) / (1 - e * e);
+    const A = Math.cos(latR) * dLon;
+
+    const M = a * (
+        (1 - e * e / 4 - 3 * e * e * e * e / 64 - 5 * e * e * e * e * e * e / 256) * latR
+        - (3 * e * e / 8 + 3 * e * e * e * e / 32 + 45 * e * e * e * e * e * e / 1024) * Math.sin(2 * latR)
+        + (15 * e * e * e * e / 256 + 45 * e * e * e * e * e * e / 1024) * Math.sin(4 * latR)
+        - (35 * e * e * e * e * e * e / 3072) * Math.sin(6 * latR)
+    );
+
+    const easting = k0 * N * (A + (1 - T + C) * A * A * A / 6
+        + (5 - 18 * T + T * T + 72 * C - 58 * e * e) * A * A * A * A * A / 120)
+        + 500000;
+
+    const northing = k0 * (M + N * Math.tan(latR) * (A * A / 2
+        + (5 - T + 9 * C + 4 * C * C) * A * A * A * A / 24
+        + (61 - 58 * T + T * T + 600 * C - 330 * e * e) * A * A * A * A * A * A / 720));
+
+    const hem = lat >= 0 ? 'N' : 'S';
+    const north = hem === 'S' ? northing + 10000000 : northing;
+
+    return { zone: `${zone}${hem}`, easting: Math.round(easting), northing: Math.round(north) };
+}
 
 // ─── GPS ────────────────────────────────────────────────────────────────────
 getLocationBtn.addEventListener('click', () => {
@@ -165,11 +209,13 @@ getLocationBtn.addEventListener('click', () => {
     getLocationBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Obteniendo...';
     navigator.geolocation.getCurrentPosition(
         (pos) => {
-            latInput.value = pos.coords.latitude.toFixed(6);
-            lonInput.value = pos.coords.longitude.toFixed(6);
+            const utm = toUTM(pos.coords.latitude, pos.coords.longitude);
+            latInput.value = utm.easting;
+            lonInput.value = utm.northing;
+            utmZoneInput.value = utm.zone;
             getLocationBtn.disabled = false;
             getLocationBtn.innerHTML = '<i class="fas fa-location-dot"></i> Obtener GPS';
-            showToast('Ubicación obtenida');
+            showToast(`Ubicación obtenida — Zona UTM: ${utm.zone}`);
         },
         (err) => {
             console.error('GPS error:', err);
@@ -181,52 +227,52 @@ getLocationBtn.addEventListener('click', () => {
     );
 });
 
-// ─── Camera ─────────────────────────────────────────────────────────────────
+// ─── Camera (fullscreen) ────────────────────────────────────────────────────
 let cameraStream = null;
-const cameraPreview = document.getElementById('cameraPreview');
-const cameraContainer = document.getElementById('cameraContainer');
-const captureFrameBtn = document.getElementById('captureFrame');
-const stopCameraBtn = document.getElementById('stopCamera');
+const fullscreenOverlay = document.getElementById('cameraOverlay');
+const fullscreenVideo = document.getElementById('fullscreenPreview');
+const fullscreenCapture = document.getElementById('fullscreenCapture');
+const fullscreenClose = document.getElementById('fullscreenClose');
 
-capturePhotoBtn.addEventListener('click', async () => {
+async function openFullscreenCamera() {
     try {
         cameraStream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
+            video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } }
         });
-        cameraPreview.srcObject = cameraStream;
-        cameraContainer.style.display = 'block';
-        capturePhotoBtn.style.display = 'none';
+        fullscreenVideo.srcObject = cameraStream;
+        fullscreenOverlay.classList.add('active');
     } catch (err) {
         console.error('Camera error:', err);
         photoInput.click();
     }
-});
-
-captureFrameBtn.addEventListener('click', () => {
-    if (!cameraPreview.srcObject) return;
-    const canvas = document.createElement('canvas');
-    canvas.width = cameraPreview.videoWidth;
-    canvas.height = cameraPreview.videoHeight;
-    canvas.getContext('2d').drawImage(cameraPreview, 0, 0);
-    canvas.toBlob((blob) => {
-        photoBlob = blob;
-        const url = URL.createObjectURL(blob);
-        updatePhotoUI(url);
-        setTimeout(() => URL.revokeObjectURL(url), 100); // liberar memoria
-        stopCamera();
-    }, 'image/jpeg', 0.85);
-});
-
-stopCameraBtn.addEventListener('click', stopCamera);
-
-function stopCamera() {
-    if (cameraStream) { cameraStream.getTracks().forEach(t => t.stop()); cameraStream = null; }
-    cameraPreview.srcObject = null;
-    cameraContainer.style.display = 'none';
-    capturePhotoBtn.style.display = 'inline-flex';
 }
 
-// ─── File input fallback ────────────────────────────────────────────────────
+function closeFullscreenCamera() {
+    if (cameraStream) { cameraStream.getTracks().forEach(t => t.stop()); cameraStream = null; }
+    fullscreenVideo.srcObject = null;
+    fullscreenOverlay.classList.remove('active');
+}
+
+function captureFromFullscreen() {
+    if (!cameraStream) return;
+    const canvas = document.createElement('canvas');
+    canvas.width = fullscreenVideo.videoWidth || 1280;
+    canvas.height = fullscreenVideo.videoHeight || 720;
+    canvas.getContext('2d').drawImage(fullscreenVideo, 0, 0);
+    canvas.toBlob((blob) => {
+        photoBlob = blob;
+        updatePhotoUI(URL.createObjectURL(blob));
+        closeFullscreenCamera();
+    }, 'image/jpeg', 0.85);
+}
+
+capturePhotoBtn.addEventListener('click', openFullscreenCamera);
+fullscreenCapture.addEventListener('click', captureFromFullscreen);
+fullscreenClose.addEventListener('click', closeFullscreenCamera);
+
+// ─── File input (cargar foto guardada) ───────────────────────────────────────
+uploadPhotoBtn.addEventListener('click', () => photoInput.click());
+
 photoInput.addEventListener('change', (e) => {
     const file = e.target.files[0];
     if (file) {
@@ -270,7 +316,7 @@ async function displayRecords() {
                 <div class="record-details">
                     <span><i class="fas fa-map-pin"></i> ${esc(r.address)}</span>
                     <span><i class="fas fa-envelope"></i> ${esc(r.email)}</span>
-                    ${r.lat && r.lon ? `<span><i class="fas fa-globe"></i> <span class="record-coords">${r.lat}, ${r.lon}</span></span>` : ''}
+                    ${r.lat && r.lon ? `<span><i class="fas fa-globe"></i> <span class="record-coords">${r.utmZone ? r.utmZone + ' ' : ''}E: ${r.lat}  N: ${r.lon}</span></span>` : ''}
                 </div>
                 <div class="record-actions">
                     <button class="btn btn-edit" data-edit="${r.id}"><i class="fas fa-pen"></i> Editar</button>
@@ -290,7 +336,14 @@ async function displayRecords() {
 
             div.querySelector('[data-edit]').addEventListener('click', () => editRecord(r.id));
             div.querySelector('[data-delete]').addEventListener('click', () => deleteRecordConfirm(r.id));
-            div.querySelector('[data-sync]').addEventListener('click', () => syncRecord(r.id));
+            div.querySelector('[data-sync]').addEventListener('click', function() {
+                this.disabled = true;
+                this.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Enviando...';
+                syncRecord(r.id).finally(() => {
+                    this.disabled = false;
+                    this.innerHTML = '<i class="fas fa-cloud-upload-alt"></i> Sync';
+                });
+            });
 
             recordsList.appendChild(div);
         });
@@ -315,6 +368,7 @@ window.editRecord = async (id) => {
             emailInput.value = r.email;
             latInput.value = r.lat || '';
             lonInput.value = r.lon || '';
+            utmZoneInput.value = r.utmZone || '';
             if (r.photo) updatePhotoUI(r.photo); else updatePhotoUI(null);
             editingId = id;
             saveBtnSpan.textContent = 'Actualizar';
@@ -342,7 +396,8 @@ window.deleteRecordConfirm = async (id) => {
 // ─── Sync ───────────────────────────────────────────────────────────────────
 // ⚠️ REEMPLAZA esta URL por la que obtengas al desplegar tu Code.gs:
 //    Desplegar → Nueva implementación → Aplicación web → Copiar URL
-const GS_URL = 'https://script.google.com/macros/s/AKfycbzLxO_115vbBLPnvZ8zVdfe4kIQh-gLimEMN6nw9dRp6ptfUT4V5A7b09GuWinMQda7/exec';
+//const GS_URL = 'https://script.google.com/macros/s/AKfycbzLxO_115vbBLPnvZ8zVdfe4kIQh-gLimEMN6nw9dRp6ptfUT4V5A7b09GuWinMQda7/exec';
+const GS_URL = 'https://script.google.com/macros/s/AKfycbz54Nx2_zL8Cynrv3sCqSPigRrCzBegO2NE9P9O7Op0ysWObvW7R79ovlkUnrC_lyOM/exec';
 
 window.syncRecord = async (id) => {
     if (!confirm('¿Enviar a Google Sheets y eliminar localmente?')) return;

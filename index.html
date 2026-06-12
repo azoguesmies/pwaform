@@ -37,38 +37,39 @@
                             <label for="name">
                                 <i class="fas fa-user"></i> Nombres <span class="required">*</span>
                             </label>
-                            <input type="text" id="name" name="name" placeholder="Ingrese sus nombres completos" required>
+                            <input type="text" id="name" name="name" placeholder="Ingrese sus nombres completos" autocomplete="name" required>
                             <span class="field-message"></span>
                         </div>
                         <div class="field">
                             <label for="address">
                                 <i class="fas fa-map-marker-alt"></i> Dirección <span class="required">*</span>
                             </label>
-                            <input type="text" id="address" name="address" placeholder="Ingrese su dirección" required>
+                            <input type="text" id="address" name="address" placeholder="Ingrese su dirección" autocomplete="street-address" required>
                             <span class="field-message"></span>
                         </div>
                         <div class="field">
                             <label for="email">
                                 <i class="fas fa-envelope"></i> EMAIL <span class="required">*</span>
                             </label>
-                            <input type="email" id="email" name="email" placeholder="ejemplo@correo.com" required>
+                            <input type="email" id="email" name="email" placeholder="ejemplo@correo.com" autocomplete="email" required>
                             <span class="field-message"></span>
                         </div>
                         <div class="field-group">
                             <div class="field half">
                                 <label for="lat">
-                                    <i class="fas fa-globe-americas"></i> Latitud
+                                    <i class="fas fa-globe-americas"></i> Este (UTM)
                                 </label>
                                 <input type="text" id="lat" name="lat" placeholder="--" readonly>
                             </div>
                             <div class="field half">
                                 <label for="lon">
-                                    <i class="fas fa-globe-americas"></i> Longitud
+                                    <i class="fas fa-globe-americas"></i> Norte (UTM)
                                 </label>
                                 <input type="text" id="lon" name="lon" placeholder="--" readonly>
                             </div>
-                            <div class="field full">
-                                <button type="button" id="getLocation" class="btn btn-secondary">
+                            <div class="field full" style="display:flex;gap:10px;align-items:center;">
+                                <input type="text" id="utmZone" placeholder="Zona" readonly style="width:100px;padding:10px 14px;font-size:14px;font-family:inherit;border:1.5px solid var(--gray-200);border-radius:var(--radius-sm);background:var(--gray-100);color:var(--gray-600);text-align:center;">
+                                <button type="button" id="getLocation" class="btn btn-secondary" style="flex:1;">
                                     <i class="fas fa-location-dot"></i> Obtener GPS
                                 </button>
                             </div>
@@ -86,28 +87,18 @@
                                 <p>Sin foto</p>
                             </div>
                         </div>
-                        <div id="cameraContainer">
-                            <div class="camera-wrapper">
-                                <video id="cameraPreview" autoplay playsinline></video>
-                            </div>
-                            <div class="camera-actions">
-                                <button type="button" id="captureFrame" class="btn btn-success">
-                                    <i class="fas fa-circle"></i> Capturar
-                                </button>
-                                <button type="button" id="stopCamera" class="btn btn-danger">
-                                    <i class="fas fa-times"></i> Cerrar
-                                </button>
-                            </div>
-                        </div>
                         <div class="photo-actions">
                             <button type="button" id="capturePhoto" class="btn btn-secondary">
                                 <i class="fas fa-camera"></i> Tomar Foto
+                            </button>
+                            <button type="button" id="uploadPhoto" class="btn btn-secondary">
+                                <i class="fas fa-folder-open"></i> Cargar Foto
                             </button>
                             <button type="button" id="removePhoto" class="btn btn-outline-danger">
                                 <i class="fas fa-trash-alt"></i> Eliminar Foto
                             </button>
                         </div>
-                        <input type="file" id="photoInput" accept="image/*" capture="environment">
+                        <input type="file" id="photoInput" accept="image/*">
                     </div>
 
                     <div class="form-actions">
@@ -145,6 +136,19 @@
     </main>
 
     <div class="toast-container" id="toastContainer"></div>
+
+    <!-- Overlay de cámara fullscreen -->
+    <div id="cameraOverlay" class="camera-overlay">
+        <video id="fullscreenPreview" autoplay playsinline></video>
+        <div class="camera-overlay-actions">
+            <button type="button" id="fullscreenCapture" class="btn btn-capture">
+                <i class="fas fa-circle"></i>
+            </button>
+            <button type="button" id="fullscreenClose" class="btn btn-close-overlay">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+    </div>
 
     <script src="script.js"></script>
 </body>
