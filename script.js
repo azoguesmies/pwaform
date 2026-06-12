@@ -1,9 +1,51 @@
-// ─── Service Worker Registration ────────────────────────────────────────────
+// ─── Service Worker Registration + Update Detection ─────────────────────────
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-        navigator.serviceWorker.register('sw.js')
-            .then(() => console.log('SW: Registered'))
-            .catch(err => console.error('SW Error:', err));
+        navigator.serviceWorker.register('sw.js').then(reg => {
+            console.log('SW: Registered');
+
+            // Detectar nueva versión en cada navegación
+            reg.addEventListener('updatefound', () => {
+                const newSW = reg.installing;
+                newSW.addEventListener('statechange', () => {
+                    if (newSW.state === 'installed' && reg.active) {
+                        // Hay una versión nueva esperando
+                        showUpdateToast(() => {
+                            newSW.postMessage('SKIP_WAITING');
+                        });
+                    }
+                });
+            });
+        }).catch(err => console.error('SW Error:', err));
+
+        // Recargar cuando el nuevo SW tome control
+        let refreshing = false;
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+            if (refreshing) return;
+            refreshing = true;
+            window.location.reload();
+        });
+    });
+}
+
+function showUpdateToast(onUpdate) {
+    const existing = document.querySelector('.update-toast');
+    if (existing) existing.remove();
+
+    const toast = document.createElement('div');
+    toast.className = 'update-toast';
+    toast.innerHTML = `
+        <span>Nueva versión disponible</span>
+        <button id="updateBtn">Actualizar</button>
+    `;
+    document.body.appendChild(toast);
+
+    setTimeout(() => toast.classList.add('show'), 100);
+
+    toast.querySelector('#updateBtn').addEventListener('click', () => {
+        toast.classList.remove('show');
+        setTimeout(() => toast.remove(), 300);
+        onUpdate();
     });
 }
 
