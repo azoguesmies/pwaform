@@ -14,12 +14,18 @@
 <body>
     <header class="app-header">
         <div class="header-content">
-            <div class="header-icon">
-                <i class="fas fa-clipboard-list"></i>
+            <div class="header-left">
+                <div class="header-icon">
+                    <i class="fas fa-clipboard-list"></i>
+                </div>
+                <div>
+                    <h1>Formulario PWA</h1>
+                    <p class="header-subtitle">Registro de datos con captura de ubicación y fotografía</p>
+                </div>
             </div>
-            <div>
-                <h1>Formulario PWA</h1>
-                <p class="header-subtitle">Registro de datos con captura de ubicación y fotografía</p>
+            <div class="status-indicator" id="statusIndicator">
+                <span class="status-dot" id="statusDot"></span>
+                <span class="status-label" id="statusLabel">OFFLINE</span>
             </div>
         </div>
     </header>

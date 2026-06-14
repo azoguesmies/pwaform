@@ -49,6 +49,21 @@ function showUpdateToast(onUpdate) {
     });
 }
 
+// ─── Online / Offline Indicator ─────────────────────────────────────────────
+const statusDot = document.getElementById('statusDot');
+const statusLabel = document.getElementById('statusLabel');
+
+function updateOnlineStatus() {
+    const online = navigator.onLine;
+
+    statusDot.className = 'status-dot ' + (online ? 'online' : 'offline');
+    statusLabel.textContent = online ? 'ONLINE' : 'OFFLINE';
+}
+
+window.addEventListener('online', updateOnlineStatus);
+window.addEventListener('offline', updateOnlineStatus);
+updateOnlineStatus(); // estado inicial
+
 // ─── IndexedDB ──────────────────────────────────────────────────────────────
 let db;
 const DB_NAME = 'PWAFormDB';
@@ -442,6 +457,10 @@ window.deleteRecordConfirm = async (id) => {
 const GS_URL = 'https://script.google.com/macros/s/AKfycbz54Nx2_zL8Cynrv3sCqSPigRrCzBegO2NE9P9O7Op0ysWObvW7R79ovlkUnrC_lyOM/exec';
 
 window.syncRecord = async (id) => {
+    if (!navigator.onLine) {
+        showToast('No hay conexión a internet. No se puede enviar el registro.', 'error');
+        return;
+    }
     if (!confirm('¿Enviar a Google Sheets y eliminar localmente?')) return;
 
     const db = await openDB();
@@ -493,6 +512,10 @@ window.syncRecord = async (id) => {
 
 // ─── Sync All ───────────────────────────────────────────────────────────────
 syncAllBtn.addEventListener('click', async () => {
+    if (!navigator.onLine) {
+        showToast('No hay conexión a internet. No se puede enviar los registros.', 'error');
+        return;
+    }
     if (!confirm('¿Enviar TODOS los registros a Google Sheets y vaciar el registro local?')) return;
 
     const records = await getAllRecords();

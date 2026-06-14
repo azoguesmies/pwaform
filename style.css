@@ -57,6 +57,13 @@ body {
     padding: 20px 24px;
     display: flex;
     align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.header-left {
+    display: flex;
+    align-items: center;
     gap: 16px;
 }
 
@@ -76,6 +83,45 @@ body {
     font-size: 22px;
     font-weight: 700;
     letter-spacing: -.3px;
+}
+
+/* ─── Status Indicator ────────────────────────────────────────────────────── */
+.status-indicator {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(255,255,255,.13);
+    padding: 6px 14px 6px 10px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: .3px;
+    backdrop-filter: blur(4px);
+    white-space: nowrap;
+    transition: background .3s;
+}
+.status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+    transition: background .3s, box-shadow .3s;
+}
+.status-dot.online {
+    background: #34d399;
+    box-shadow: 0 0 6px rgba(52,211,153,.6);
+}
+.status-dot.offline {
+    background: #f87171;
+    box-shadow: 0 0 6px rgba(248,113,113,.6);
+    animation: pulse 1.5s infinite;
+}
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: .4; }
+}
+.status-label {
+    text-transform: uppercase;
 }
 
 .header-subtitle {
