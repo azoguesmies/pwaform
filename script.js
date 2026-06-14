@@ -506,29 +506,18 @@ window.syncRecord = async (id) => {
     const timeout = setTimeout(() => controller.abort(), 20000);
 
     try {
-        const res = await fetch(GS_URL, {
+        await fetch(GS_URL, {
             method: 'POST',
+            mode: 'no-cors',
             headers: { 'Content-Type': 'text/plain' },
             body: JSON.stringify(record),
             signal: controller.signal
         });
         clearTimeout(timeout);
 
-        let data;
-        try {
-            data = await res.json();
-        } catch (parseErr) {
-            showToast('Error al leer la respuesta del servidor. Verifica el despliegue del script.', 'error');
-            return;
-        }
-
-        if (data && data.result === 'success') {
-            await deleteRecord(id);
-            await displayRecords();
-            showToast('Registro enviado a Google Sheets');
-        } else {
-            showToast(data?.message || 'Error del servidor al guardar. Reintente.', 'error');
-        }
+        await deleteRecord(id);
+        await displayRecords();
+        showToast('Registro enviado a Google Sheets');
 
     } catch (err) {
         clearTimeout(timeout);
@@ -539,7 +528,7 @@ window.syncRecord = async (id) => {
             return;
         }
 
-        showToast('Error de conexión. No se pudo contactar al servidor.', 'error');
+        showToast('Error de conexión. No se pudo enviar el registro.', 'error');
     }
 };
 
@@ -566,31 +555,18 @@ syncAllBtn.addEventListener('click', async () => {
         const timeout = setTimeout(() => controller.abort(), 20000);
 
         try {
-            const res = await fetch(GS_URL, {
+            await fetch(GS_URL, {
                 method: 'POST',
+                mode: 'no-cors',
                 headers: { 'Content-Type': 'text/plain' },
                 body: JSON.stringify(record),
                 signal: controller.signal
             });
             clearTimeout(timeout);
 
-            let data;
-            try {
-                data = await res.json();
-            } catch {
-                errors.push(`${record.name}: respuesta inválida`);
-                syncAllStatus.textContent = `${sent} / ${records.length}`;
-                continue;
-            }
-
-            if (data && data.result === 'success') {
-                sent++;
-                syncAllStatus.textContent = `${sent} / ${records.length}`;
-                await deleteRecord(record.id);
-            } else {
-                errors.push(`${record.name}: ${data?.message || 'error servidor'}`);
-                syncAllStatus.textContent = `${sent} / ${records.length}`;
-            }
+            sent++;
+            syncAllStatus.textContent = `${sent} / ${records.length}`;
+            await deleteRecord(record.id);
 
         } catch (err) {
             clearTimeout(timeout);
