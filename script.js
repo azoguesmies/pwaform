@@ -482,8 +482,8 @@ window.deleteRecordConfirm = async (id) => {
 // ─── Sync ───────────────────────────────────────────────────────────────────
 // ⚠️ REEMPLAZA esta URL por la que obtengas al desplegar tu Code.gs:
 //    Desplegar → Nueva implementación → Aplicación web → Copiar URL
-const GS_URL = 'https://script.google.com/macros/s/AKfycbzlRwKufO-IDasbZ8U49QOzA2CcOGbb_xIRlytQzlM9B-Ms9cSlSk7EIGN0pXKqH9hy/exec';
-//const GS_URL = 'https://script.google.com/macros/s/AKfycbz54Nx2_zL8Cynrv3sCqSPigRrCzBegO2NE9P9O7Op0ysWObvW7R79ovlkUnrC_lyOM/exec';
+//const GS_URL = 'https://script.google.com/macros/s/AKfycbzlRwKufO-IDasbZ8U49QOzA2CcOGbb_xIRlytQzlM9B-Ms9cSlSk7EIGN0pXKqH9hy/exec';
+const GS_URL = 'https://script.google.com/macros/s/AKfycbz54Nx2_zL8Cynrv3sCqSPigRrCzBegO2NE9P9O7Op0ysWObvW7R79ovlkUnrC_lyOM/exec';
 
 window.syncRecord = async (id) => {
     if (!navigator.onLine) {
