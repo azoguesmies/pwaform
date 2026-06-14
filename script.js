@@ -482,7 +482,7 @@ window.deleteRecordConfirm = async (id) => {
 // ─── Sync ───────────────────────────────────────────────────────────────────
 // ⚠️ REEMPLAZA esta URL por la que obtengas al desplegar tu Code.gs:
 //    Desplegar → Nueva implementación → Aplicación web → Copiar URL
-const GS_URL = 'https://script.google.com/macros/s/AKfycby9hMomiZbm8GGHuAGqx--QUyCGoqIm5cxPYoMb54TU82A22hLcujF02pz39TAL-Lv7/exec';
+const GS_URL = 'https://script.google.com/macros/s/AKfycbzlRwKufO-IDasbZ8U49QOzA2CcOGbb_xIRlytQzlM9B-Ms9cSlSk7EIGN0pXKqH9hy/exec';
 //const GS_URL = 'https://script.google.com/macros/s/AKfycbz54Nx2_zL8Cynrv3sCqSPigRrCzBegO2NE9P9O7Op0ysWObvW7R79ovlkUnrC_lyOM/exec';
 
 window.syncRecord = async (id) => {
@@ -508,19 +508,27 @@ window.syncRecord = async (id) => {
     try {
         const res = await fetch(GS_URL, {
             method: 'POST',
-            mode: 'no-cors',
             headers: { 'Content-Type': 'text/plain' },
             body: JSON.stringify(record),
             signal: controller.signal
         });
         clearTimeout(timeout);
 
-        // no-cors devuelve respuesta opaca (status 0, body ilegible).
-        // Si el fetch no lanzó error, la petición llegó al servidor
-        // y Google Apps Script procesó los datos correctamente.
-        await deleteRecord(id);
-        await displayRecords();
-        showToast('Registro enviado a Google Sheets');
+        let data;
+        try {
+            data = await res.json();
+        } catch (parseErr) {
+            showToast('Error al leer la respuesta del servidor. Verifica el despliegue del script.', 'error');
+            return;
+        }
+
+        if (data && data.result === 'success') {
+            await deleteRecord(id);
+            await displayRecords();
+            showToast('Registro enviado a Google Sheets');
+        } else {
+            showToast(data?.message || 'Error del servidor al guardar. Reintente.', 'error');
+        }
 
     } catch (err) {
         clearTimeout(timeout);
@@ -531,7 +539,7 @@ window.syncRecord = async (id) => {
             return;
         }
 
-        showToast('Error de conexión. No se pudo enviar el registro.', 'error');
+        showToast('Error de conexión. No se pudo contactar al servidor.', 'error');
     }
 };
 
@@ -558,18 +566,31 @@ syncAllBtn.addEventListener('click', async () => {
         const timeout = setTimeout(() => controller.abort(), 20000);
 
         try {
-            await fetch(GS_URL, {
+            const res = await fetch(GS_URL, {
                 method: 'POST',
-                mode: 'no-cors',
                 headers: { 'Content-Type': 'text/plain' },
                 body: JSON.stringify(record),
                 signal: controller.signal
             });
             clearTimeout(timeout);
 
-            sent++;
-            syncAllStatus.textContent = `${sent} / ${records.length}`;
-            await deleteRecord(record.id);
+            let data;
+            try {
+                data = await res.json();
+            } catch {
+                errors.push(`${record.name}: respuesta inválida`);
+                syncAllStatus.textContent = `${sent} / ${records.length}`;
+                continue;
+            }
+
+            if (data && data.result === 'success') {
+                sent++;
+                syncAllStatus.textContent = `${sent} / ${records.length}`;
+                await deleteRecord(record.id);
+            } else {
+                errors.push(`${record.name}: ${data?.message || 'error servidor'}`);
+                syncAllStatus.textContent = `${sent} / ${records.length}`;
+            }
 
         } catch (err) {
             clearTimeout(timeout);
