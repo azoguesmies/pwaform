@@ -503,15 +503,11 @@ window.syncRecord = async (id) => {
     if (!record) { showToast('Registro no encontrado', 'error'); return; }
 
     // ── Enviar con Content-Type: text/plain para EVITAR preflight CORS ──
-    // Google Apps Script no maneja solicitudes OPTIONS (preflight).
-    // text/plain es un Content-Type "simple" según la especificación CORS,
-    // por lo que el navegador NO envía OPTIONS antes del POST.
-    // El servidor recibe el JSON igualmente en e.postData.contents.
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 15000);
+    const timeout = setTimeout(() => controller.abort(), 20000);
 
     try {
-        await fetch(GS_URL, {
+        const res = await fetch(GS_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'text/plain' },
             body: JSON.stringify(record),
@@ -519,23 +515,32 @@ window.syncRecord = async (id) => {
         });
         clearTimeout(timeout);
 
-        await deleteRecord(id);
-        await displayRecords();
-        showToast('Registro enviado a Google Sheets');
+        // Leer y validar la respuesta del servidor
+        let data;
+        try {
+            data = await res.json();
+        } catch {
+            showToast('Error al leer la respuesta del servidor. Reintente.', 'error');
+            return;
+        }
+
+        if (data && data.result === 'success') {
+            await deleteRecord(id);
+            await displayRecords();
+            showToast('Registro enviado a Google Sheets');
+        } else {
+            showToast(data?.message || 'Error del servidor al guardar. Reintente.', 'error');
+        }
     } catch (err) {
         clearTimeout(timeout);
         console.error('Sync error:', err);
 
         if (err.name === 'AbortError') {
-            showToast('Tiempo de espera agotado (15s). Reintenta.', 'error');
+            showToast('Tiempo de espera agotado (20s). Reintenta.', 'error');
             return;
         }
 
-        // TypeError (CORS) u otro: el servidor probablemente recibió los datos.
-        // El navegador bloquea la lectura de la respuesta pero el POST se ejecutó.
-        await deleteRecord(id);
-        await displayRecords();
-        showToast('Registro enviado a Google Sheets', 'success');
+        showToast('Error de conexión. No se pudo enviar el registro.', 'error');
     }
 };
 
@@ -559,29 +564,42 @@ syncAllBtn.addEventListener('click', async () => {
 
     for (const record of records) {
         const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 15000);
+        const timeout = setTimeout(() => controller.abort(), 20000);
 
         try {
-            await fetch(GS_URL, {
+            const res = await fetch(GS_URL, {
                 method: 'POST',
                 headers: { 'Content-Type': 'text/plain' },
                 body: JSON.stringify(record),
                 signal: controller.signal
             });
             clearTimeout(timeout);
-            sent++;
-            syncAllStatus.textContent = `${sent} / ${records.length}`;
-            await deleteRecord(record.id);
+
+            let data;
+            try {
+                data = await res.json();
+            } catch {
+                errors.push(`${record.name}: respuesta inválida`);
+                syncAllStatus.textContent = `${sent} / ${records.length}`;
+                continue;
+            }
+
+            if (data && data.result === 'success') {
+                sent++;
+                syncAllStatus.textContent = `${sent} / ${records.length}`;
+                await deleteRecord(record.id);
+            } else {
+                errors.push(`${record.name}: ${data?.message || 'error servidor'}`);
+                syncAllStatus.textContent = `${sent} / ${records.length}`;
+            }
         } catch (err) {
             clearTimeout(timeout);
             if (err.name === 'AbortError') {
                 errors.push(`${record.name}: timeout`);
             } else {
-                // CORS/TypeError: asumir éxito
-                sent++;
-                syncAllStatus.textContent = `${sent} / ${records.length}`;
-                await deleteRecord(record.id);
+                errors.push(`${record.name}: error de conexión`);
             }
+            syncAllStatus.textContent = `${sent} / ${records.length}`;
         }
     }
 
@@ -589,7 +607,8 @@ syncAllBtn.addEventListener('click', async () => {
     syncAllBtn.innerHTML = '<i class="fas fa-cloud-upload-alt"></i> Enviar Todos a Google Sheets';
 
     await displayRecords();
-    showToast(`${sent} registro(s) enviado(s) y eliminado(s) localmente` + (errors.length ? ` (${errors.length} error(es))` : ''), errors.length ? 'warning' : 'success');
+    const msg = `${sent} registro(s) enviado(s)` + (errors.length ? `, ${errors.length} error(es)` : '');
+    showToast(msg, errors.length && sent === 0 ? 'error' : errors.length ? 'warning' : 'success');
 });
 
 // ─── Init ───────────────────────────────────────────────────────────────────
