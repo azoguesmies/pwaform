@@ -49,6 +49,35 @@ function showUpdateToast(onUpdate) {
     });
 }
 
+// ─── Refresh / Update Button ────────────────────────────────────────────────
+document.getElementById('refreshBtn').addEventListener('click', async function () {
+    this.classList.add('spinning');
+
+    try {
+        // 1) Forzar actualización del SW si existe
+        if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+            const reg = await navigator.serviceWorker.getRegistration();
+            if (reg) {
+                await reg.update();
+                if (reg.waiting) {
+                    reg.waiting.postMessage('SKIP_WAITING');
+                    return;
+                }
+            }
+        }
+
+        // 2) Sin SW pendiente: limpiar cachés y recargar
+        if ('caches' in window) {
+            const keys = await caches.keys();
+            await Promise.all(keys.map(k => caches.delete(k)));
+        }
+    } catch (err) {
+        console.error('Refresh error:', err);
+    }
+
+    window.location.reload();
+});
+
 // ─── Online / Offline Indicator ─────────────────────────────────────────────
 const statusDot = document.getElementById('statusDot');
 const statusLabel = document.getElementById('statusLabel');

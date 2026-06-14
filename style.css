@@ -86,6 +86,38 @@ body {
 }
 
 /* ─── Status Indicator ────────────────────────────────────────────────────── */
+.header-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.btn-refresh {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(255,255,255,.13);
+    color: #fff;
+    font-size: 14px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background .2s, transform .2s;
+    backdrop-filter: blur(4px);
+}
+.btn-refresh:hover {
+    background: rgba(255,255,255,.25);
+}
+.btn-refresh:active {
+    transform: scale(.9);
+}
+.btn-refresh.spinning i {
+    animation: spin .6s linear;
+}
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
 .status-indicator {
     display: flex;
     align-items: center;
